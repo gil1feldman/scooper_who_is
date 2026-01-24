@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>חידון המנטרים - Scooper Dashboard Style</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Heebo', sans-serif;
+            background-color: #1f0f3a; /* צבע הרקע מהדשבורד */
+            color: #ffffff;
+        }
+
+        /* הגדרות ספציפיות לכפתורים במצבים שונים - משתלב עם Tailwind */
+        .option-btn.selected {
+            background-color: #a78bfa !important; /* סגול בהיר מודגש */
+            border-color: #a78bfa !important;
+            color: white !important;
+            box-shadow: 0 0 15px rgba(167, 139, 250, 0.4);
+        }
+
+        .option-btn.correct {
+            background-color: #10b981 !important; /* ירוק אמרלד */
+            border-color: #10b981 !important;
+            color: white !important;
+        }
+
+        .option-btn.wrong {
+            background-color: #ef4444 !important; /* אדום בוהק */
+            border-color: #ef4444 !important;
+            opacity: 0.7;
+        }
+
+        .option-btn:disabled {
+            cursor: default;
+        }
+
+        /* אנימציית טעינה */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #a78bfa;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* עיצוב לינקים */
+        a.revealed-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <header class="bg-[#51367a] shadow-lg border-b border-purple-400/30 sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
+                    SCOOPER
+                </div>
+                <div class="h-6 w-px bg-purple-400/50 hidden md:block"></div>
+                <h1 class="text-lg font-medium text-purple-100">חידון זיהוי כותבים</h1>
+            </div>
+            <div class="text-sm text-purple-200 mt-2 md:mt-0 font-light">
+                בשיתוף חברת סקופר לניטור ומחקר מדיה
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-3xl w-full mx-auto p-6">
+        
+        <div id="loading" class="text-center py-20">
+            <div class="loader mb-4"></div>
+            <p class="text-purple-200 text-lg">טוען נתונים מהמערכת...</p>
+        </div>
+        
+        <div id="error-msg" class="hidden bg-red-900/50 border border-red-500/50 text-red-200 p-6 rounded-xl text-left dir-ltr font-mono text-sm shadow-xl backdrop-blur-sm mb-6"></div>
+        
+        <div id="score-display" class="hidden bg-gradient-to-br from-[#51367a] to-[#4c1d95] p-8 rounded-2xl shadow-2xl border border-purple-400/30 text-center mb-8 transform transition-all duration-500 hover:scale-105">
+            <h2 class="text-purple-200 text-xl mb-2">תוצאות סופיות</h2>
+            <div id="score-number" class="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400 mb-2">0/0</div>
+            <p class="text-purple-300 text-sm">ניטור שיח ברשתות</p>
+        </div>
+
+        <div id="quiz-list" class="space-y-8"></div>
+        
+        <div class="sticky bottom-6 text-center pointer-events-none">
+            <button id="submit-btn" onclick="checkAnswers()" class="pointer-events-auto hidden bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-3 px-10 rounded-full shadow-lg transform transition hover:-translate-y-1 hover:shadow-cyan-500/50 text-lg border border-white/10">
+                בצע בדיקת זיהוי
+            </button>
+        </div>
+    </main>
+
+    <footer class="text-center py-6 text-purple-400/50 text-sm">
+        Scooper Monitoring System &copy; 2026
+    </footer>
+
+    <script>
+        const DATA_URL = "https://raw.githubusercontent.com/gil1feldman/data_files/main/scooper_who_write.csv";
+
+        let activeQuestions = [];
+        let userAnswers = {};
+        
+        // --- לוגיקה זהה לחלוטין לקודם (Parse CSV) ---
+        function parseCSV(text) {
+            let arr = [];
+            let quote = false; 
+            let row = 0, col = 0;
+            let c = 0;
+            arr[row] = ['']; 
+
+            for (; c < text.length; c++) {
+                let cc = text[c], nc = text[c+1];
+                arr[row] = arr[row] || [];
+                arr[row][col] = arr[row][col] || '';
+
+                if (cc == '"' && quote && nc == '"') { arr[row][col] += '"'; c++; continue; }
+                if (cc == '"') { quote = !quote; continue; }
+                if (cc == ',' && !quote) { col++; arr[row][col] = ''; continue; }
+                if (cc == '\r' && nc == '\n' && !quote) { row++; col = 0; c++; arr[row] = ['']; continue; }
+                if (cc == '\n' && !quote) { row++; col = 0; arr[row] = ['']; continue; }
+                
+                arr[row][col] += cc;
+            }
+            return arr.filter(r => r.length > 1 || (r.length === 1 && r[0] !== ''));
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // --- פונקציית האתחול (לוגיקה זהה, עיצוב שונה ב-DOM) ---
+        async function initQuiz() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error-msg');
+            const submitBtn = document.getElementById('submit-btn');
+
+            try {
+                const response = await fetch(DATA_URL);
+                if (!response.ok) throw new Error(`Status: ${response.status}`);
+                
+                const csvText = await response.text();
+                const data = parseCSV(csvText);
+                
+                if (data.length < 2) throw new Error("Empty Data File");
+
+                const headers = data[0].map(h => h.trim().replace(/^\uFEFF/, ''));
+                const findCol = (name) => headers.findIndex(h => h.toLowerCase().trim() === name.toLowerCase());
+
+                const colIndices = {
+                    content: findCol('content'),
+                    post_type: findCol('post_type'),
+                    url: findCol('url'),
+                    name: findCol('extra_source_attributes.name'),
+                    tags: findCol('tags_internal')
+                };
+
+                if (colIndices.content === -1 || colIndices.name === -1) throw new Error("Missing Columns (content/name)");
+
+                const parsedPosts = data.slice(1).map(row => {
+                    if (row.length < headers.length) return null;
+                    return {
+                        content: row[colIndices.content],
+                        post_type: row[colIndices.post_type],
+                        url: row[colIndices.url],
+                        extra_source_attributes: { name: row[colIndices.name] },
+                        tags_internal: colIndices.tags !== -1 ? row[colIndices.tags] : ""
+                    };
+                }).filter(p => p !== null);
+
+                // --- לוגיקת הסינון המקורית ---
+                const filteredPosts = parsedPosts.filter(post => {
+                    if (post.post_type !== "TEXT") return false;
+                    const content = post.content || "";
+                    const tags = post.tags_internal || "";
+                    if (content.includes("RT @") || content.includes("QT @")) return false;
+                    if (tags.includes("isTwitterReply")) return false;
+                    return true;
+                });
+                
+                if (filteredPosts.length === 0) throw new Error("No items found after filter.");
+                
+                const allAuthors = [...new Set(filteredPosts.map(p => p.extra_source_attributes.name).filter(n => n && n.trim() !== ''))];
+                
+                if (filteredPosts.length < 4 || allAuthors.length < 4) throw new Error("Insufficient data.");
+
+                const selectedPosts = shuffleArray([...filteredPosts]).slice(0, 10);
+                
+                activeQuestions = selectedPosts.map((post, index) => {
+                    const correctAuthor = post.extra_source_attributes.name;
+                    const distractors = shuffleArray(allAuthors.filter(name => name !== correctAuthor)).slice(0, 3);
+                    const options = shuffleArray([correctAuthor, ...distractors]);
+
+                    return {
+                        id: index,
+                        content: post.content,
+                        url: post.url,
+                        correct: correctAuthor,
+                        options: options
+                    };
+                });
+
+                loadingEl.style.display = 'none';
+                submitBtn.classList.remove('hidden');
+                renderQuiz();
+
+            } catch (error) {
+                console.error(error);
+                loadingEl.style.display = 'none';
+                errorEl.innerText = "Error: " + error.message;
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        // --- רינדור עם עיצוב הדשבורד (Tailwind) ---
+        function renderQuiz() {
+            const container = document.getElementById('quiz-list');
+            container.innerHTML = '';
+
+            activeQuestions.forEach((q) => {
+                const card = document.createElement('div');
+                // שימוש בכרטיסיה בסגנון הדשבורד: רקע סגול, פינות מעוגלות, גבול עדין
+                card.className = 'bg-[#51367a] rounded-xl p-6 shadow-xl border border-purple-400/20 relative overflow-hidden transition hover:border-purple-400/40';
+                
+                let optionsHtml = '';
+                q.options.forEach(opt => {
+                    // כפתורים עם רקע שקוף למחצה, גבול בהיר
+                    optionsHtml += `
+                        <button class="option-btn w-full text-right p-3 rounded-lg border border-purple-300/30 text-purple-100 hover:bg-purple-600/50 hover:border-purple-300/60 transition-all duration-200 focus:outline-none" 
+                        onclick="selectOption(${q.id}, '${opt}', this)">
+                            ${opt}
+                        </button>`;
+                });
+
+                card.innerHTML = `
+                    <div class="absolute top-0 right-0 bottom-0 w-1 bg-gradient-to-b from-cyan-400 to-blue-500"></div>
+                    
+                    <div class="flex justify-between items-center mb-4 pr-3">
+                        <span class="text-xs font-bold text-cyan-400 tracking-wider uppercase">POST #${q.id + 1}</span>
+                        <span class="text-xs text-purple-300 bg-purple-900/50 px-2 py-1 rounded">TEXT ANALYSIS</span>
+                    </div>
+
+                    <div class="mb-6 relative">
+                        <div class="text-white text-lg leading-relaxed bg-[#1f0f3a]/50 p-4 rounded-lg border border-white/5" id="content-${q.id}">
+                            ${q.content}
+                        </div>
+                    </div>
+
+                    <div class="mb-3 text-sm font-semibold text-purple-200 pr-1">מיהו הכותב?</div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="options-${q.id}">
+                        ${optionsHtml}
+                    </div>
+
+                    <div id="feedback-${q.id}" class="mt-4 p-3 rounded-lg text-sm font-bold hidden text-center animate-pulse"></div>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        function selectOption(questionId, selectedName, btnElement) {
+            userAnswers[questionId] = selectedName;
+            const parent = document.getElementById(`options-${questionId}`);
+            const buttons = parent.getElementsByClassName('option-btn');
+            for (let btn of buttons) {
+                btn.classList.remove('selected');
+            }
+            btnElement.classList.add('selected');
+        }
+
+        function checkAnswers() {
+            let score = 0;
+            const total = activeQuestions.length;
+            
+            activeQuestions.forEach(q => {
+                const feedbackEl = document.getElementById(`feedback-${q.id}`);
+                const optionsDiv = document.getElementById(`options-${q.id}`);
+                const contentDiv = document.getElementById(`content-${q.id}`);
+                const buttons = optionsDiv.getElementsByClassName('option-btn');
+                const userAnswer = userAnswers[q.id];
+                const isCorrect = userAnswer === q.correct;
+
+                // הפיכת הטקסט ללינק - עיצוב הלינק מוגדר ב-CSS
+                contentDiv.innerHTML = `
+                    <a href="${q.url}" target="_blank" class="revealed-link block h-full w-full">
+                        ${q.content}
+                        <div class="mt-2 text-xs text-cyan-400 flex items-center gap-1">
+                            <span>🔗</span> לחץ למעבר למקור
+                        </div>
+                    </a>`;
+
+                for (let btn of buttons) {
+                    btn.disabled = true;
+                    if (btn.innerText === q.correct) btn.classList.add('correct');
+                    if (btn.innerText === userAnswer && !isCorrect) btn.classList.add('wrong');
+                }
+
+                if (isCorrect) {
+                    score++;
+                    feedbackEl.className = "mt-4 p-3 rounded-lg text-sm font-bold text-center bg-green-900/50 text-green-200 border border-green-500/30";
+                    feedbackEl.innerText = '✓ זוהה בהצלחה';
+                } else {
+                    feedbackEl.className = "mt-4 p-3 rounded-lg text-sm font-bold text-center bg-red-900/50 text-red-200 border border-red-500/30";
+                    feedbackEl.innerText = `✗ זיהוי שגוי. הכותב: ${q.correct}`;
+                }
+                feedbackEl.classList.remove('hidden');
+            });
+
+            // הצגת הציון עם עיצוב מותאם
+            const scoreDisplay = document.getElementById('score-display');
+            const scoreNumber = document.getElementById('score-number');
+            scoreNumber.innerText = `${score} / ${total}`;
+            scoreDisplay.classList.remove('hidden');
+            
+            // הסתרת כפתור הבדיקה
+            document.getElementById('submit-btn').parentElement.classList.add('hidden');
+            
+            // גלילה חלקה למעלה
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        initQuiz();
+    </script>
+</body>
+</html>
