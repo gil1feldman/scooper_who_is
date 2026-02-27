@@ -169,6 +169,8 @@
 
     <script>
         const DATA_URL = "https://script.google.com/macros/s/AKfycbxAXy0rYS3KdfPWSDuRXo792d_M_YXlFwj9JTiSctKEJc3fK1K-IDRg9ApYcliCMjnU_w/exec";
+        const CACHE_KEY = 'quiz_data_cache';
+        const CACHE_TTL = 5 * 60 * 1000; // 5 דקות
         let activeQuestions = [];
         let userAnswers = {};
         const NUM_OPTIONS = 4;
@@ -273,9 +275,18 @@
             document.getElementById('start-btn').disabled = true;
 
             try {
-                const response = await fetch(DATA_URL);
-                if (!response.ok) throw new Error('Network error');
-                const rows = await response.json();
+                let rows;
+
+                // בדוק cache
+                const cached = sessionStorage.getItem(CACHE_KEY);
+                if (cached) {
+                    rows = JSON.parse(cached);
+                } else {
+                    const response = await fetch(DATA_URL);
+                    if (!response.ok) throw new Error('Network error');
+                    rows = await response.json();
+                    sessionStorage.setItem(CACHE_KEY, JSON.stringify(rows));
+                }
 
                 const parsedPosts = rows.map(r => ({
                     content: r['content'] || r['Content'] || '',
@@ -456,10 +467,11 @@
         function shareResults() {
             const total = activeQuestions.length;
             const emoji = finalScore >= 8 ? '🏆' : finalScore >= 5 ? '🎯' : '📚';
+            const shareUrl = window.location.href;
             const text = `${emoji} זהה את הנבחר – חידון זיהוי כותבים\n` +
                 `קיבלתי ${finalScore}/${total}!\n` +
                 `האם תצליחו לנחש מי כתב מה?\n` +
-                `https://scooper.co.il`;
+                shareUrl;
 
             if (navigator.share) {
                 navigator.share({ text }).catch(() => copyToClipboard(text));
