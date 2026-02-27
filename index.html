@@ -60,31 +60,6 @@
             transition: width 0.5s ease;
         }
 
-        /* Difficulty selector */
-        .diff-btn {
-            transition: all 0.2s;
-        }
-        .diff-btn.active {
-            transform: scale(1.05);
-        }
-        .diff-btn-easy.active {
-            background-color: #10b981;
-            border-color: #10b981;
-            color: white;
-            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
-        }
-        .diff-btn-medium.active {
-            background-color: #f59e0b;
-            border-color: #f59e0b;
-            color: white;
-            box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
-        }
-        .diff-btn-hard.active {
-            background-color: #ef4444;
-            border-color: #ef4444;
-            color: white;
-            box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
-        }
 
         /* Share button */
         #share-btn {
@@ -148,24 +123,9 @@
                 הנתונים בחסות חברת <strong>סקופר</strong> המתמחה בניטור שיח ברשתות ובמחקרי מדיה.
             </p>
 
-            <!-- Difficulty selector -->
-            <div class="mt-8">
-                <p class="text-purple-200 text-sm mb-3 font-medium">בחרו רמת קושי:</p>
-                <div class="flex justify-center gap-3 flex-wrap">
-                    <button class="diff-btn diff-btn-easy border border-green-400/50 text-green-300 px-5 py-2 rounded-full font-bold" onclick="setDifficulty('easy', this)">
-                        🟢 קל (3 כותבים)
-                    </button>
-                    <button class="diff-btn diff-btn-medium active border border-yellow-400/50 text-yellow-300 px-5 py-2 rounded-full font-bold bg-yellow-500/20" onclick="setDifficulty('medium', this)">
-                        🟡 בינוני (4 כותבים)
-                    </button>
-                    <button class="diff-btn diff-btn-hard border border-red-400/50 text-red-300 px-5 py-2 rounded-full font-bold" onclick="setDifficulty('hard', this)">
-                        🔴 קשה (6 כותבים)
-                    </button>
-                </div>
-                <button id="start-btn" onclick="startQuiz()" class="mt-6 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-3 px-10 rounded-full shadow-lg transform transition hover:-translate-y-1 text-lg border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <button id="start-btn" onclick="startQuiz()" class="mt-6 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-3 px-10 rounded-full shadow-lg transform transition hover:-translate-y-1 text-lg border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                     ⏳ טוען נתונים...
                 </button>
-            </div>
         </div>
 
         <div id="loading" class="hidden text-center py-20">
@@ -211,14 +171,12 @@
         const DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBttBd_dyDbYqAv2hNFhq-VfwgdvfG_aZNfSdYh2OJvfAAZxfRXIEaifepEJqsXmg5GdpBvK4xLDRz/pub?output=csv&cachebust=" + Date.now();
         let activeQuestions = [];
         let userAnswers = {};
-        let currentDifficulty = 'medium'; // easy=3, medium=4, hard=6
+        const NUM_OPTIONS = 4;
         let answeredCount = 0;
         let finalScore = 0;
-        let allFilteredPosts = [];   // cached after first fetch
+        let allFilteredPosts = [];
         let allAuthors = [];
         let authorGenderMap = {};
-
-        const DIFFICULTY_OPTIONS = { easy: 3, medium: 4, hard: 6 };
 
         // --- Gender detection ---
         // Returns 'female', 'male', or 'unknown'
@@ -288,15 +246,6 @@
             return 'unknown';
         }
 
-        function setDifficulty(level, btn) {
-            currentDifficulty = level;
-            document.querySelectorAll('.diff-btn').forEach(b => {
-                b.classList.remove('active');
-                // remove bg classes
-                b.style.backgroundColor = '';
-            });
-            btn.classList.add('active');
-        }
 
         function parseCSV(text) {
             let arr = [];
@@ -401,10 +350,19 @@
             document.getElementById('quiz-list').innerHTML = '';
             document.getElementById('score-display').classList.add('hidden');
 
-            const numOptions = DIFFICULTY_OPTIONS[currentDifficulty];
+            const numOptions = NUM_OPTIONS;
 
-            const short = shuffleArray(allFilteredPosts.filter(p => p.content.length <= 120));
-            const long = shuffleArray(allFilteredPosts.filter(p => p.content.length > 120));
+            // הסרת כפילויות לפי תוכן
+            const seenContent = new Set();
+            const uniquePosts = allFilteredPosts.filter(p => {
+                const key = p.content.trim();
+                if (seenContent.has(key)) return false;
+                seenContent.add(key);
+                return true;
+            });
+
+            const short = shuffleArray(uniquePosts.filter(p => p.content.length <= 120));
+            const long = shuffleArray(uniquePosts.filter(p => p.content.length > 120));
             const selected = shuffleArray([...short.slice(0, 5), ...long.slice(0, 5)]).slice(0, 10);
             
             activeQuestions = selected.map((post, index) => {
@@ -528,10 +486,9 @@
 
         function shareResults() {
             const total = activeQuestions.length;
-            const diffLabel = { easy: 'קל', medium: 'בינוני', hard: 'קשה' }[currentDifficulty];
             const emoji = finalScore >= 8 ? '🏆' : finalScore >= 5 ? '🎯' : '📚';
             const text = `${emoji} זהה את הנבחר – חידון זיהוי כותבים\n` +
-                `קיבלתי ${finalScore}/${total} ברמת קושי ${diffLabel}!\n` +
+                `קיבלתי ${finalScore}/${total}!\n` +
                 `האם תצליחו לנחש מי כתב מה?\n` +
                 `https://scooper.co.il`;
 
