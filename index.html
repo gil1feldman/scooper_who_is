@@ -168,7 +168,8 @@
     </div>
 
     <script>
-        const DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBttBd_dyDbYqAv2hNFhq-VfwgdvfG_aZNfSdYh2OJvfAAZxfRXIEaifepEJqsXmg5GdpBvK4xLDRz/pub?output=csv&cachebust=" + Date.now();
+        const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBttBd_dyDbYqAv2hNFhq-VfwgdvfG_aZNfSdYh2OJvfAAZxfRXIEaifepEJqsXmg5GdpBvK4xLDRz/pub?output=csv";
+        const DATA_URL = "https://corsproxy.io/?" + encodeURIComponent(SHEET_URL);
         let activeQuestions = [];
         let userAnswers = {};
         const NUM_OPTIONS = 4;
