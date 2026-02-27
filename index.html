@@ -54,18 +54,84 @@
             border-radius: 8px;
             transition: all 0.2s;
         }
+
+        /* Progress bar */
+        .progress-bar-inner {
+            transition: width 0.5s ease;
+        }
+
+        /* Difficulty selector */
+        .diff-btn {
+            transition: all 0.2s;
+        }
+        .diff-btn.active {
+            transform: scale(1.05);
+        }
+        .diff-btn-easy.active {
+            background-color: #10b981;
+            border-color: #10b981;
+            color: white;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+        }
+        .diff-btn-medium.active {
+            background-color: #f59e0b;
+            border-color: #f59e0b;
+            color: white;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+        }
+        .diff-btn-hard.active {
+            background-color: #ef4444;
+            border-color: #ef4444;
+            color: white;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Share button */
+        #share-btn {
+            background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+        }
+        #share-btn:hover {
+            background: linear-gradient(135deg, #22d3ee, #a78bfa);
+            transform: translateY(-2px);
+        }
+
+        /* Question counter badge */
+        .q-counter {
+            background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        /* Toast */
+        #toast {
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        #toast.show {
+            opacity: 1 !important;
+            transform: translateY(0) !important;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
     <header class="bg-[#51367a] shadow-lg border-b border-purple-400/30 sticky top-0 z-50">
-        <div class="max-w-4xl mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between">
+        <div class="max-w-4xl mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-2">
             <div class="flex items-center gap-3">
                 <div class="text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 uppercase">
                     זהה את הנבחר
                 </div>
                 <div class="h-6 w-px bg-purple-400/50 hidden md:block"></div>
                 <h1 class="text-lg font-medium text-purple-100">חידון זיהוי כותבים</h1>
+            </div>
+            <!-- Progress indicator (shown after quiz starts) -->
+            <div id="header-progress" class="hidden flex items-center gap-3">
+                <span id="header-counter" class="q-counter">0 / 10</span>
+                <div class="w-32 h-2 bg-purple-900 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="progress-bar-inner h-full bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full" style="width:0%"></div>
+                </div>
             </div>
         </div>
     </header>
@@ -81,6 +147,22 @@
             <p class="mt-4 text-sm text-purple-300">
                 הנתונים בחסות חברת <strong>סקופר</strong> המתמחה בניטור שיח ברשתות ובמחקרי מדיה.
             </p>
+
+            <!-- Difficulty selector -->
+            <div class="mt-8">
+                <p class="text-purple-200 text-sm mb-3 font-medium">בחרו רמת קושי:</p>
+                <div class="flex justify-center gap-3 flex-wrap">
+                    <button class="diff-btn diff-btn-easy border border-green-400/50 text-green-300 px-5 py-2 rounded-full font-bold" onclick="setDifficulty('easy', this)">
+                        🟢 קל (3 כותבים)
+                    </button>
+                    <button class="diff-btn diff-btn-medium active border border-yellow-400/50 text-yellow-300 px-5 py-2 rounded-full font-bold bg-yellow-500/20" onclick="setDifficulty('medium', this)">
+                        🟡 בינוני (4 כותבים)
+                    </button>
+                    <button class="diff-btn diff-btn-hard border border-red-400/50 text-red-300 px-5 py-2 rounded-full font-bold" onclick="setDifficulty('hard', this)">
+                        🔴 קשה (6 כותבים)
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div id="loading" class="text-center py-20">
@@ -88,11 +170,17 @@
             <p class="text-purple-200 text-lg">טוען נתונים...</p>
         </div>
         
-        <div id="error-msg" class="hidden bg-red-900/50 border border-red-500/50 text-red-200 p-6 rounded-xl text-center mb-6"></div>
+        <div id="error-msg" class="hidden bg-red-900/50 border border-red-500/50 text-red-200 p-6 rounded-xl text-center mb-6">
+            <p id="error-text"></p>
+            <button onclick="initQuiz()" class="mt-4 bg-red-700 hover:bg-red-600 text-white px-6 py-2 rounded-full font-bold">נסה שוב</button>
+        </div>
         
         <div id="score-display" class="hidden bg-gradient-to-br from-[#51367a] to-[#4c1d95] p-8 rounded-2xl shadow-2xl border border-purple-400/30 text-center mb-8">
             <h2 class="text-purple-200 text-xl mb-2">תוצאות הניתוח</h2>
-            <div id="score-number" class="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400 mb-2">0/0</div>
+            <div id="score-number" class="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400 mb-4">0/0</div>
+            <button id="share-btn" onclick="shareResults()" class="text-white font-bold py-3 px-8 rounded-full shadow-lg transition text-lg border border-white/20 mt-2">
+                📤 שתף תוצאות
+            </button>
         </div>
 
         <div id="quiz-list" class="space-y-8"></div>
@@ -108,11 +196,99 @@
         פיתוח: גיל פלדמן | נתונים: סקופר &copy; 2026
     </footer>
 
+    <!-- Toast notification -->
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-green-700 text-white px-6 py-3 rounded-full shadow-xl font-bold text-sm opacity-0 translate-y-4 pointer-events-none z-50">
+        הועתק ללוח! 📋
+    </div>
+
     <script>
         const DATA_URL = "https://raw.githubusercontent.com/gil1feldman/data_files/main/scooper_who_write.csv";
         let activeQuestions = [];
         let userAnswers = {};
-        
+        let currentDifficulty = 'medium'; // easy=3, medium=4, hard=6
+        let answeredCount = 0;
+        let finalScore = 0;
+
+        const DIFFICULTY_OPTIONS = { easy: 3, medium: 4, hard: 6 };
+
+        // --- Gender detection ---
+        // Returns 'female', 'male', or 'unknown'
+        function detectGender(text) {
+            if (!text) return 'unknown';
+
+            // Strong female markers (verb endings, pronouns)
+            const femalePatterns = [
+                /\bאני\s+\w*(ת|תי)\b/,   // אני כתבתי / אני מציינת
+                /\b\w+תי\b/,              // verb 1st person female-like (shared but common)
+                /\bאמרתי\b/,
+                /\b(היא|את|אותה|שלה|לה)\b/i,
+                /\b\w+(ת|ות)\s+(כי|ש|ל|ב|מ|על|עם|ה)\b/,  // פועל נקבה לפני מילת יחס
+                // third person female verb
+                /\b\w+ת\s+(כי|ש|ל|ב|מ|על|עם|ה)\b/,
+                // "אני" + female verb ending
+                /אני\s+\w+ת\b/,
+                /אני\s+\w+ות\b/,
+                // "כותבת", "מדברת", "חושבת" etc.
+                /\b(כותבת|מדברת|חושבת|אומרת|רוצה|יוצאת|נמצאת|מוכנה|שמחה|גאה|עצובה|מזמינה|קוראת|מציעה|מבקשת|מאמינה|יכולה|צריכה|עושה)\b/,
+            ];
+
+            // Strong male markers
+            const malePatterns = [
+                /\b(הוא|אותו|שלו|לו)\b/i,
+                // "אני" + male verb – no ת ending
+                /אני\s+\w+[^ת]\b/,
+                /\b(כותב|מדבר|חושב|אומר|רוצה|יוצא|נמצא|מוכן|שמח|גאה|עצוב|מזמין|קורא|מציע|מבקש|מאמין|יכול|צריך|עושה)\b/,
+                /\b(אמר|הלך|בא|ראה|חשב|עשה)\b/,
+            ];
+
+            let femaleScore = 0;
+            let maleScore = 0;
+
+            for (const pat of femalePatterns) {
+                if (pat.test(text)) femaleScore++;
+            }
+            for (const pat of malePatterns) {
+                if (pat.test(text)) maleScore++;
+            }
+
+            if (femaleScore > maleScore + 1) return 'female';
+            if (maleScore > femaleScore + 1) return 'male';
+            return 'unknown';
+        }
+
+        // --- Gender of author name (simple heuristic based on name suffix) ---
+        function authorGender(name) {
+            if (!name) return 'unknown';
+            const firstName = name.trim().split(/\s+/)[0];
+            // Common female name endings in Hebrew
+            if (/[הא]$/.test(firstName)) {
+                // Ambiguous – skip strong filtering
+                return 'unknown';
+            }
+            // Try a small known-name list approach + pattern
+            const femaleNames = ['מרב', 'ינון', 'יעל', 'תמר', 'נועה', 'שרה', 'לאה', 'רחל', 'דינה', 'מיכל', 'אורנה', 'נירה', 'הדר', 'שלי', 'ליאת', 'רונית', 'גלית', 'ורד', 'דפנה', 'אביגיל', 'רחל', 'נעמי', 'אורית', 'עינת', 'הילה', 'מאיה', 'איילת', 'רויטל', 'קרן', 'ענת', 'נטע', 'לימור', 'כרמית', 'שירי', 'ירדן', 'ריקי', 'שלומית', 'רינת', 'אלית', 'נעה', 'יהודית', 'בתיה', 'אפרת', 'יפית', 'ציפי', 'פנינה', 'רעיה', 'שושנה', 'פנינה', 'סיגל', 'מזל', 'זהבה', 'גבריאלה', 'מרגלית', 'אסתר', 'חנה', 'רבקה', 'לילך', 'נגה', 'שירה'];
+            const maleNames = ['בנימין', 'יצחק', 'אברהם', 'משה', 'דוד', 'שלמה', 'אריה', 'יוסף', 'עמיר', 'גדי', 'אבי', 'רון', 'גל', 'עמי', 'אמיר', 'נתן', 'יואב', 'ניר', 'אלי', 'יחיאל', 'עידן', 'אלון', 'שמעון', 'יובל', 'בועז', 'גדעון', 'אייל', 'דני', 'גיא', 'ברק', 'נחום', 'איתן', 'ישראל', 'אלחנן', 'חיים', 'אוריאל', 'שלום', 'אריאל', 'מנחם', 'יאיר', 'זאב', 'רם', 'לאון'];
+
+            if (femaleNames.includes(firstName)) return 'female';
+            if (maleNames.includes(firstName)) return 'male';
+
+            // Ending heuristics
+            if (/ית$|ית$|ה$/.test(firstName)) return 'female';
+            if (/ון$|אל$|אן$|ים$/.test(firstName)) return 'male';
+
+            return 'unknown';
+        }
+
+        function setDifficulty(level, btn) {
+            currentDifficulty = level;
+            document.querySelectorAll('.diff-btn').forEach(b => {
+                b.classList.remove('active');
+                // remove bg classes
+                b.style.backgroundColor = '';
+            });
+            btn.classList.add('active');
+        }
+
         function parseCSV(text) {
             let arr = [];
             let quote = false; 
@@ -145,12 +321,29 @@
             return /[\u0590-\u05FF]/.test(text);
         }
 
+        function updateProgress() {
+            const total = activeQuestions.length;
+            const answered = Object.keys(userAnswers).length;
+            document.getElementById('header-counter').textContent = `${answered} / ${total}`;
+            document.getElementById('progress-bar').style.width = `${(answered / total) * 100}%`;
+        }
+
         async function initQuiz() {
-            const loadingEl = document.getElementById('loading');
-            const submitBtn = document.getElementById('submit-btn');
+            answeredCount = 0;
+            userAnswers = {};
+            activeQuestions = [];
+            document.getElementById('quiz-list').innerHTML = '';
+            document.getElementById('score-display').classList.add('hidden');
+            document.getElementById('error-msg').classList.add('hidden');
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('header-progress').classList.add('hidden');
+            document.getElementById('submit-btn').classList.add('hidden');
+
+            const numOptions = DIFFICULTY_OPTIONS[currentDifficulty];
 
             try {
                 const response = await fetch(DATA_URL);
+                if (!response.ok) throw new Error('Network error');
                 const csvText = await response.text();
                 const data = parseCSV(csvText);
                 const headers = data[0].map(h => h.trim().replace(/^\uFEFF/, ''));
@@ -172,63 +365,103 @@
                 })).filter(p => p.content && p.name);
 
                 const filteredPosts = parsedPosts.filter(p => {
-                    // 1. חובה שיהיה מסוג טקסט
                     if (p.post_type !== "TEXT") return false;
-
                     const content = p.content.trim();
-                    
-                    // 2. סינון רעשים: RT, תשובות, לינקים
                     if (content.includes("RT @") || content.includes("QT @") || content.startsWith("@")) return false;
                     if (content.toLowerCase().includes("http")) return false;
-                    
-                    // 3. סינון טכני: תיוג תשובה
                     if (p.tags.includes("isTwitterReply")) return false;
-                    
-                    // 4. אורך ואיכות
                     if (content.length < 25 || content.length > 300) return false;
                     if (!isHebrew(content)) return false; 
-                    
                     return true;
                 });
+
+                const allAuthors = [...new Set(filteredPosts.map(p => p.name))];
+
+                // Build author-gender map
+                const authorGenderMap = {};
+                allAuthors.forEach(a => { authorGenderMap[a] = authorGender(a); });
 
                 const short = shuffleArray(filteredPosts.filter(p => p.content.length <= 120));
                 const long = shuffleArray(filteredPosts.filter(p => p.content.length > 120));
                 const selected = shuffleArray([...short.slice(0, 5), ...long.slice(0, 5)]).slice(0, 10);
                 
-                const allAuthors = [...new Set(filteredPosts.map(p => p.name))];
-                
                 activeQuestions = selected.map((post, index) => {
-                    const distractors = shuffleArray(allAuthors.filter(n => n !== post.name)).slice(0, 3);
+                    const postGender = detectGender(post.content);
+                    const correctAuthorGender = authorGenderMap[post.name];
+
+                    // Filter distractors by gender if text gender is identified
+                    let candidateDistractors = allAuthors.filter(n => n !== post.name);
+                    if (postGender === 'female') {
+                        const femaleAuthors = candidateDistractors.filter(n => authorGenderMap[n] === 'female' || authorGenderMap[n] === 'unknown');
+                        if (femaleAuthors.length >= numOptions - 1) {
+                            candidateDistractors = femaleAuthors;
+                        }
+                        // else fall back to all
+                    } else if (postGender === 'male') {
+                        const maleAuthors = candidateDistractors.filter(n => authorGenderMap[n] === 'male' || authorGenderMap[n] === 'unknown');
+                        if (maleAuthors.length >= numOptions - 1) {
+                            candidateDistractors = maleAuthors;
+                        }
+                        // else fall back to all
+                    }
+
+                    const distractors = shuffleArray(candidateDistractors).slice(0, numOptions - 1);
+                    // If not enough distractors, fill from all authors
+                    if (distractors.length < numOptions - 1) {
+                        const extra = shuffleArray(allAuthors.filter(n => n !== post.name && !distractors.includes(n))).slice(0, numOptions - 1 - distractors.length);
+                        distractors.push(...extra);
+                    }
+
                     return {
-                        id: index, content: post.content, url: post.url, correct: post.name,
-                        options: shuffleArray([post.name, ...distractors])
+                        id: index,
+                        content: post.content,
+                        url: post.url,
+                        correct: post.name,
+                        options: shuffleArray([post.name, ...distractors]),
+                        postGender
                     };
                 });
 
-                loadingEl.style.display = 'none';
-                submitBtn.classList.remove('hidden');
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('submit-btn').classList.remove('hidden');
+                document.getElementById('header-progress').classList.remove('hidden');
+                document.getElementById('intro-card').classList.remove('hidden');
+                updateProgress();
                 renderQuiz();
             } catch (error) {
-                loadingEl.style.display = 'none';
-                document.getElementById('error-msg').innerText = "שגיאה בטעינת הנתונים";
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error-text').innerText = "שגיאה בטעינת הנתונים. אנא בדקו את החיבור לאינטרנט ונסו שוב.";
                 document.getElementById('error-msg').classList.remove('hidden');
             }
         }
 
         function renderQuiz() {
             const container = document.getElementById('quiz-list');
-            activeQuestions.forEach((q) => {
+            const numOptions = DIFFICULTY_OPTIONS[currentDifficulty];
+            const gridCols = numOptions <= 4 ? 'md:grid-cols-2' : 'md:grid-cols-3';
+
+            activeQuestions.forEach((q, idx) => {
                 const card = document.createElement('div');
                 card.className = 'bg-[#51367a] rounded-xl p-6 shadow-xl border border-purple-400/20 relative overflow-hidden transition';
+
+                // Gender badge for debugging (optional - hidden in production)
+                const genderBadge = q.postGender !== 'unknown' 
+                    ? `<span class="text-xs text-purple-400 ml-2">${q.postGender === 'female' ? '👩' : '👨'}</span>` 
+                    : '';
+
                 card.innerHTML = `
                     <div class="absolute top-0 right-0 bottom-0 w-1 bg-gradient-to-b from-cyan-400 to-blue-500"></div>
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="q-counter">שאלה ${idx + 1} מתוך ${activeQuestions.length}</span>
+                        ${genderBadge}
+                    </div>
                     <div class="mb-6">
                         <div class="text-white text-lg leading-relaxed bg-[#1f0f3a]/50 p-5 rounded-lg border border-white/5" id="content-${q.id}">
                             ${q.content}
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="options-${q.id}">
-                        ${q.options.map(opt => `<button class="option-btn text-right p-3 rounded-lg border border-purple-300/30 text-purple-100 hover:bg-purple-600/50" onclick="selectOption(${q.id}, '${opt}', this)">${opt}</button>`).join('')}
+                    <div class="grid grid-cols-1 ${gridCols} gap-3" id="options-${q.id}">
+                        ${q.options.map(opt => `<button class="option-btn text-right p-3 rounded-lg border border-purple-300/30 text-purple-100 hover:bg-purple-600/50" onclick="selectOption(${q.id}, '${opt.replace(/'/g, "\\'")}', this)">${opt}</button>`).join('')}
                     </div>
                     <div id="feedback-${q.id}" class="mt-4 p-3 rounded-lg text-sm font-bold hidden text-center"></div>
                 `;
@@ -237,10 +470,14 @@
         }
 
         function selectOption(id, name, btn) {
+            const wasAnswered = userAnswers.hasOwnProperty(id);
             userAnswers[id] = name;
             const parent = document.getElementById(`options-${id}`);
             parent.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
+            if (!wasAnswered) {
+                updateProgress();
+            }
         }
 
         function checkAnswers() {
@@ -257,8 +494,8 @@
 
                 optionsDiv.querySelectorAll('.option-btn').forEach(btn => {
                     btn.disabled = true;
-                    if (btn.innerText === q.correct) btn.classList.add('correct');
-                    if (btn.innerText === userAnswers[q.id] && !isCorrect) btn.classList.add('wrong');
+                    if (btn.innerText.trim() === q.correct) btn.classList.add('correct');
+                    if (btn.innerText.trim() === userAnswers[q.id] && !isCorrect) btn.classList.add('wrong');
                 });
 
                 feedbackEl.className = `mt-4 p-3 rounded-lg text-sm font-bold text-center ${isCorrect ? 'bg-green-900/50 text-green-200' : 'bg-red-900/50 text-red-200'}`;
@@ -266,11 +503,56 @@
                 feedbackEl.classList.remove('hidden');
             });
 
-            document.getElementById('score-number').innerText = `${score} / 10`;
+            finalScore = score;
+            const total = activeQuestions.length;
+            document.getElementById('score-number').innerText = `${score} / ${total}`;
             document.getElementById('score-display').classList.remove('hidden');
             document.getElementById('intro-card').classList.add('hidden');
             document.getElementById('submit-btn').parentElement.classList.add('hidden');
+
+            // Update progress to full
+            document.getElementById('header-counter').textContent = `${total} / ${total}`;
+            document.getElementById('progress-bar').style.width = '100%';
+
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function shareResults() {
+            const total = activeQuestions.length;
+            const diffLabel = { easy: 'קל', medium: 'בינוני', hard: 'קשה' }[currentDifficulty];
+            const emoji = finalScore >= 8 ? '🏆' : finalScore >= 5 ? '🎯' : '📚';
+            const text = `${emoji} זהה את הנבחר – חידון זיהוי כותבים\n` +
+                `קיבלתי ${finalScore}/${total} ברמת קושי ${diffLabel}!\n` +
+                `האם תצליחו לנחש מי כתב מה?\n` +
+                `https://scooper.co.il`;
+
+            if (navigator.share) {
+                navigator.share({ text }).catch(() => copyToClipboard(text));
+            } else {
+                copyToClipboard(text);
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('הועתק ללוח! 📋');
+            }).catch(() => {
+                // Fallback
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('הועתק ללוח! 📋');
+            });
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
         }
 
         initQuiz();
