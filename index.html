@@ -162,17 +162,20 @@
                         🔴 קשה (6 כותבים)
                     </button>
                 </div>
+                <button id="start-btn" onclick="startQuiz()" class="mt-6 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-3 px-10 rounded-full shadow-lg transform transition hover:-translate-y-1 text-lg border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    ⏳ טוען נתונים...
+                </button>
             </div>
         </div>
 
-        <div id="loading" class="text-center py-20">
+        <div id="loading" class="hidden text-center py-20">
             <div class="loader mb-4"></div>
             <p class="text-purple-200 text-lg">טוען נתונים...</p>
         </div>
         
         <div id="error-msg" class="hidden bg-red-900/50 border border-red-500/50 text-red-200 p-6 rounded-xl text-center mb-6">
             <p id="error-text"></p>
-            <button onclick="initQuiz()" class="mt-4 bg-red-700 hover:bg-red-600 text-white px-6 py-2 rounded-full font-bold">נסה שוב</button>
+            <button onclick="location.reload()" class="mt-4 bg-red-700 hover:bg-red-600 text-white px-6 py-2 rounded-full font-bold">נסה שוב</button>
         </div>
         
         <div id="score-display" class="hidden bg-gradient-to-br from-[#51367a] to-[#4c1d95] p-8 rounded-2xl shadow-2xl border border-purple-400/30 text-center mb-8">
@@ -180,6 +183,9 @@
             <div id="score-number" class="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400 mb-4">0/0</div>
             <button id="share-btn" onclick="shareResults()" class="text-white font-bold py-3 px-8 rounded-full shadow-lg transition text-lg border border-white/20 mt-2">
                 📤 שתף תוצאות
+            </button>
+            <button onclick="playAgain()" class="mt-3 mr-3 bg-purple-700 hover:bg-purple-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transition text-lg border border-white/20">
+                🔄 שחק שוב
             </button>
         </div>
 
@@ -202,12 +208,15 @@
     </div>
 
     <script>
-        const DATA_URL = "https://raw.githubusercontent.com/gil1feldman/data_files/main/scooper_who_write.csv";
+        const DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBttBd_dyDbYqAv2hNFhq-VfwgdvfG_aZNfSdYh2OJvfAAZxfRXIEaifepEJqsXmg5GdpBvK4xLDRz/pub?output=csv&cachebust=" + Date.now();
         let activeQuestions = [];
         let userAnswers = {};
         let currentDifficulty = 'medium'; // easy=3, medium=4, hard=6
         let answeredCount = 0;
         let finalScore = 0;
+        let allFilteredPosts = [];   // cached after first fetch
+        let allAuthors = [];
+        let authorGenderMap = {};
 
         const DIFFICULTY_OPTIONS = { easy: 3, medium: 4, hard: 6 };
 
@@ -328,18 +337,11 @@
             document.getElementById('progress-bar').style.width = `${(answered / total) * 100}%`;
         }
 
+        // Step 1: Load CSV once on page load
         async function initQuiz() {
-            answeredCount = 0;
-            userAnswers = {};
-            activeQuestions = [];
-            document.getElementById('quiz-list').innerHTML = '';
-            document.getElementById('score-display').classList.add('hidden');
-            document.getElementById('error-msg').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
             document.getElementById('loading').style.display = 'block';
-            document.getElementById('header-progress').classList.add('hidden');
-            document.getElementById('submit-btn').classList.add('hidden');
-
-            const numOptions = DIFFICULTY_OPTIONS[currentDifficulty];
+            document.getElementById('start-btn').disabled = true;
 
             try {
                 const response = await fetch(DATA_URL);
@@ -364,7 +366,7 @@
                     tags: colIndices.tags !== -1 ? row[colIndices.tags] : ""
                 })).filter(p => p.content && p.name);
 
-                const filteredPosts = parsedPosts.filter(p => {
+                allFilteredPosts = parsedPosts.filter(p => {
                     if (p.post_type !== "TEXT") return false;
                     const content = p.content.trim();
                     if (content.includes("RT @") || content.includes("QT @") || content.startsWith("@")) return false;
@@ -375,64 +377,71 @@
                     return true;
                 });
 
-                const allAuthors = [...new Set(filteredPosts.map(p => p.name))];
-
-                // Build author-gender map
-                const authorGenderMap = {};
+                allAuthors = [...new Set(allFilteredPosts.map(p => p.name))];
                 allAuthors.forEach(a => { authorGenderMap[a] = authorGender(a); });
 
-                const short = shuffleArray(filteredPosts.filter(p => p.content.length <= 120));
-                const long = shuffleArray(filteredPosts.filter(p => p.content.length > 120));
-                const selected = shuffleArray([...short.slice(0, 5), ...long.slice(0, 5)]).slice(0, 10);
-                
-                activeQuestions = selected.map((post, index) => {
-                    const postGender = detectGender(post.content);
-                    const correctAuthorGender = authorGenderMap[post.name];
-
-                    // Filter distractors by gender if text gender is identified
-                    let candidateDistractors = allAuthors.filter(n => n !== post.name);
-                    if (postGender === 'female') {
-                        const femaleAuthors = candidateDistractors.filter(n => authorGenderMap[n] === 'female' || authorGenderMap[n] === 'unknown');
-                        if (femaleAuthors.length >= numOptions - 1) {
-                            candidateDistractors = femaleAuthors;
-                        }
-                        // else fall back to all
-                    } else if (postGender === 'male') {
-                        const maleAuthors = candidateDistractors.filter(n => authorGenderMap[n] === 'male' || authorGenderMap[n] === 'unknown');
-                        if (maleAuthors.length >= numOptions - 1) {
-                            candidateDistractors = maleAuthors;
-                        }
-                        // else fall back to all
-                    }
-
-                    const distractors = shuffleArray(candidateDistractors).slice(0, numOptions - 1);
-                    // If not enough distractors, fill from all authors
-                    if (distractors.length < numOptions - 1) {
-                        const extra = shuffleArray(allAuthors.filter(n => n !== post.name && !distractors.includes(n))).slice(0, numOptions - 1 - distractors.length);
-                        distractors.push(...extra);
-                    }
-
-                    return {
-                        id: index,
-                        content: post.content,
-                        url: post.url,
-                        correct: post.name,
-                        options: shuffleArray([post.name, ...distractors]),
-                        postGender
-                    };
-                });
-
                 document.getElementById('loading').style.display = 'none';
-                document.getElementById('submit-btn').classList.remove('hidden');
-                document.getElementById('header-progress').classList.remove('hidden');
-                document.getElementById('intro-card').classList.remove('hidden');
-                updateProgress();
-                renderQuiz();
+                document.getElementById('start-btn').disabled = false;
+                document.getElementById('start-btn').textContent = 'התחל חידון ▶';
+
             } catch (error) {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error-text').innerText = "שגיאה בטעינת הנתונים. אנא בדקו את החיבור לאינטרנט ונסו שוב.";
                 document.getElementById('error-msg').classList.remove('hidden');
             }
+        }
+
+        // Step 2: Build quiz with chosen difficulty (called on "Start" click)
+        function startQuiz() {
+            if (!allFilteredPosts.length) return;
+
+            answeredCount = 0;
+            userAnswers = {};
+            activeQuestions = [];
+            document.getElementById('quiz-list').innerHTML = '';
+            document.getElementById('score-display').classList.add('hidden');
+
+            const numOptions = DIFFICULTY_OPTIONS[currentDifficulty];
+
+            const short = shuffleArray(allFilteredPosts.filter(p => p.content.length <= 120));
+            const long = shuffleArray(allFilteredPosts.filter(p => p.content.length > 120));
+            const selected = shuffleArray([...short.slice(0, 5), ...long.slice(0, 5)]).slice(0, 10);
+            
+            activeQuestions = selected.map((post, index) => {
+                const postGender = detectGender(post.content);
+
+                let candidateDistractors = allAuthors.filter(n => n !== post.name);
+                if (postGender === 'female') {
+                    const femaleAuthors = candidateDistractors.filter(n => authorGenderMap[n] === 'female' || authorGenderMap[n] === 'unknown');
+                    if (femaleAuthors.length >= numOptions - 1) candidateDistractors = femaleAuthors;
+                } else if (postGender === 'male') {
+                    const maleAuthors = candidateDistractors.filter(n => authorGenderMap[n] === 'male' || authorGenderMap[n] === 'unknown');
+                    if (maleAuthors.length >= numOptions - 1) candidateDistractors = maleAuthors;
+                }
+
+                const distractors = shuffleArray(candidateDistractors).slice(0, numOptions - 1);
+                if (distractors.length < numOptions - 1) {
+                    const extra = shuffleArray(allAuthors.filter(n => n !== post.name && !distractors.includes(n))).slice(0, numOptions - 1 - distractors.length);
+                    distractors.push(...extra);
+                }
+
+                return {
+                    id: index,
+                    content: post.content,
+                    url: post.url,
+                    correct: post.name,
+                    options: shuffleArray([post.name, ...distractors]),
+                    postGender
+                };
+            });
+
+            document.getElementById('intro-card').classList.add('hidden');
+            document.getElementById('submit-btn').classList.remove('hidden');
+            document.getElementById('submit-btn').parentElement.classList.remove('hidden');
+            document.getElementById('header-progress').classList.remove('hidden');
+            updateProgress();
+            renderQuiz();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function renderQuiz() {
@@ -553,6 +562,15 @@
             toast.textContent = msg;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        function playAgain() {
+            document.getElementById('score-display').classList.add('hidden');
+            document.getElementById('quiz-list').innerHTML = '';
+            document.getElementById('intro-card').classList.remove('hidden');
+            document.getElementById('header-progress').classList.add('hidden');
+            document.getElementById('submit-btn').classList.add('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         initQuiz();
