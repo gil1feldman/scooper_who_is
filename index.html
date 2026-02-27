@@ -168,8 +168,7 @@
     </div>
 
     <script>
-        const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBttBd_dyDbYqAv2hNFhq-VfwgdvfG_aZNfSdYh2OJvfAAZxfRXIEaifepEJqsXmg5GdpBvK4xLDRz/pub?output=csv";
-        const DATA_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(SHEET_URL);
+        const DATA_URL = "https://script.google.com/macros/s/AKfycbxAXy0rYS3KdfPWSDuRXo792d_M_YXlFwj9JTiSctKEJc3fK1K-IDRg9ApYcliCMjnU_w/exec";
         let activeQuestions = [];
         let userAnswers = {};
         const NUM_OPTIONS = 4;
@@ -248,26 +247,6 @@
         }
 
 
-        function parseCSV(text) {
-            let arr = [];
-            let quote = false; 
-            let row = 0, col = 0;
-            let c = 0;
-            arr[row] = ['']; 
-            for (; c < text.length; c++) {
-                let cc = text[c], nc = text[c+1];
-                arr[row] = arr[row] || [];
-                arr[row][col] = arr[row][col] || '';
-                if (cc == '"' && quote && nc == '"') { arr[row][col] += '"'; c++; continue; }
-                if (cc == '"') { quote = !quote; continue; }
-                if (cc == ',' && !quote) { col++; arr[row][col] = ''; continue; }
-                if (cc == '\r' && nc == '\n' && !quote) { row++; col = 0; c++; arr[row] = ['']; continue; }
-                if (cc == '\n' && !quote) { row++; col = 0; arr[row] = ['']; continue; }
-                arr[row][col] += cc;
-            }
-            return arr.filter(r => r.length > 1);
-        }
-
         function shuffleArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -287,7 +266,7 @@
             document.getElementById('progress-bar').style.width = `${(answered / total) * 100}%`;
         }
 
-        // Step 1: Load CSV once on page load
+        // Step 1: Load data once on page load
         async function initQuiz() {
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('loading').style.display = 'block';
@@ -296,24 +275,14 @@
             try {
                 const response = await fetch(DATA_URL);
                 if (!response.ok) throw new Error('Network error');
-                const csvText = await response.text();
-                const data = parseCSV(csvText);
-                const headers = data[0].map(h => h.trim().replace(/^\uFEFF/, ''));
-                
-                const colIndices = {
-                    content: headers.findIndex(h => h.toLowerCase() === 'content'),
-                    post_type: headers.findIndex(h => h.toLowerCase() === 'post_type'),
-                    url: headers.findIndex(h => h.toLowerCase() === 'url'),
-                    name: headers.findIndex(h => h.toLowerCase() === 'extra_source_attributes.name'),
-                    tags: headers.findIndex(h => h.toLowerCase() === 'tags_internal')
-                };
+                const rows = await response.json();
 
-                const parsedPosts = data.slice(1).map(row => ({
-                    content: row[colIndices.content],
-                    post_type: row[colIndices.post_type],
-                    url: row[colIndices.url],
-                    name: row[colIndices.name],
-                    tags: colIndices.tags !== -1 ? row[colIndices.tags] : ""
+                const parsedPosts = rows.map(r => ({
+                    content: r['content'] || r['Content'] || '',
+                    post_type: r['post_type'] || r['Post_type'] || '',
+                    url: r['url'] || r['URL'] || '',
+                    name: r['extra_source_attributes.name'] || r['name'] || '',
+                    tags: r['tags_internal'] || ''
                 })).filter(p => p.content && p.name);
 
                 allFilteredPosts = parsedPosts.filter(p => {
@@ -323,7 +292,7 @@
                     if (content.toLowerCase().includes("http")) return false;
                     if (p.tags.includes("isTwitterReply")) return false;
                     if (content.length < 25 || content.length > 300) return false;
-                    if (!isHebrew(content)) return false; 
+                    if (!isHebrew(content)) return false;
                     return true;
                 });
 
@@ -405,8 +374,7 @@
 
         function renderQuiz() {
             const container = document.getElementById('quiz-list');
-            const numOptions = DIFFICULTY_OPTIONS[currentDifficulty];
-            const gridCols = numOptions <= 4 ? 'md:grid-cols-2' : 'md:grid-cols-3';
+            const gridCols = 'md:grid-cols-2';
 
             activeQuestions.forEach((q, idx) => {
                 const card = document.createElement('div');
